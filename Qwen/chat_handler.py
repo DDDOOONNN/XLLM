@@ -1,9 +1,7 @@
-# chat_handler.py
-
 import logging
 import time
 from openai import OpenAI  # 修改了导入方式
-from image_encoder import encode_image  # 假设有一个图片编码模块
+from image_dataset import encode_image  # 假设有一个图片编码模块
 
 # 修改 OpenAI 的 API key 和 API base 以使用 vLLM 的 API 服务器。
 openai_api_key = "token-abc123"
@@ -37,7 +35,7 @@ def initialize_chat(system_message, role="system"):
         raise e
 
 
-def send_message(chat_session, message, role="user", inline_image=None):
+def send_message(chat_session, message, role="user", inline_image=None, max_tokens = 512):
     """
     发送消息到聊天会话并返回响应。
     """
@@ -70,13 +68,16 @@ def send_message(chat_session, message, role="user", inline_image=None):
 
         # 将用户消息添加到会话历史
         chat_session.append(user_message)
-
+        
+        if role == "system":
+            return ""
+            
         # 调用 vLLM 的 chat completion 接口
         chat_completion = client.chat.completions.create(
             model=model,
             messages=chat_session,
             temperature=0.5,
-            max_tokens=256,  # 限制返回的最大 Token 数量
+            max_tokens=max_tokens,  # 限制返回的最大 Token 数量
         )
 
         # 从响应中提取助手的回复
@@ -113,18 +114,42 @@ def send_message_with_retry(chat_session, message, role="user", inline_image=Non
                 logging.error("所有重试尝试均失败。")
                 return response
 
-    time.sleep(2)
+def delete_last_message(chat_session):
+    """
+    删除 chat_session 中的上一轮对话（用户消息和助手回复）。
+    """
+    try:
+        # 确保有足够的历史记录可以删除
+        if len(chat_session) >= 2:
+            # 删除最后两条消息（用户消息和助手回复）
+            chat_session.pop()  # 删除最后一条消息（通常是助手回复）
+            chat_session.pop()  # 删除倒数第二条消息（通常是用户消息）
+            logging.info("上一轮对话已成功删除。")
+        else:
+            logging.warning("没有足够的对话记录来删除上一轮对话。")
+    except Exception as e:
+        logging.error(f"删除上一轮对话失败: {e}")
+        raise e
+
 
 
 if __name__ == "__main__":
     # 初始化聊天会话
-    chat_history = initialize_chat("You are a helpful assistant.")
+    chat_history = initialize_chat("You are a helpful assistant. Your name is Davy.")
 
     # 发送文本消息
-    response = send_message(chat_history, "Hello, how are you?")
+    response = send_message(chat_history, "Hello, who are you?")
     print("Response:", response)
 
-    # 发送包含图片的消息
-    image_path = "/home/xxxy/hh/RJN/xllm/Qwen/test.JPG"
-    response_with_image = send_message(chat_history, "What is in this image?", inline_image=image_path)
-    print("Response with image:", response_with_image)
+    # 再次发送消息
+    response2 = send_message(chat_history, "Can you help me?")
+    print("Response 2:", response2)
+
+    # 打印当前会话历史
+    print("Chat history before deletion:", chat_history)
+
+    # 删除上一轮对话
+    delete_last_message(chat_history)
+
+    # 打印删除后的会话历史
+    print("Chat history after deletion:", chat_history)

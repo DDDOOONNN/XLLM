@@ -1,5 +1,5 @@
 from openai import OpenAI
-from image_encoder import encode_image
+from image_dataset import encode_image
 import os
 
 # Modify OpenAI's API key and API base to use vLLM's API server.
